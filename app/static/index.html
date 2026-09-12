@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DKIM Watcher</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>DKIM Watcher - <span id="record-count">loading...</span></h1>
+      <div class="toolbar">
+        <a href="/selectors/new" class="btn btn-primary">Add New Selector</a>
+        <button id="manual-check" class="btn btn-secondary">Run DKIM Check</button>
+        <button id="export-csv" class="btn btn-secondary">Export CSV</button>
+      </div>
+    </header>
+
+    <main>
+      <table id="table">
+        <thead>
+          <tr>
+            <th class="sortable" onclick="sortTable(0)">Domain <span class="sort-indicator"></span></th>
+            <th>Selector</th>
+            <th>TXT Record</th>
+            <th>Last Checked</th>
+            <th class="sortable" onclick="sortTable(4)">Unchanged For <span class="sort-indicator"></span></th>
+            <th class="sortable" onclick="sortTable(5)">Key Length <span class="sort-indicator"></span></th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Data populated by JavaScript -->
+        </tbody>
+      </table>
+    </main>
+  </div>
+
+  <script>
+    // Sort the table by column index (0 = Domain, 4 = Unchanged For).
+    // Global scope so the onclick handlers in <th> can reach it.
+    function sortTable(n) {
+      const table = document.getElementById('table');
+      const tbody = table.tBodies[0];
+      const rows = Array.from(tbody.rows);
+
+      const asc = table.dataset.sortCol !== n.toString() || table.dataset.sortAsc !== 'true';
+      table.dataset.sortCol = n.toString();
+      table.dataset.sortAsc = asc ? 'true' : 'false';
+
+      // Get numeric value from cell text (handles "2048 bit", "0 days", etc.)
+      const getNum = (text) => {
+        const m = text.match(/^(-?\d+)/);
+        return m ? parseFloat(m[1]) : NaN;
+      };
+
+      rows.sort((a, b) => {
+        const aText = a.cells[n].textContent.trim();
+        const bText = b.cells[n].textContent.trim();
+        const aNum = getNum(aText);
+        const bNum = getNum(bText);
+        let cmp;
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+          cmp = aNum - bNum;
+        } else {
+          cmp = aText.localeCompare(bText);
+        }
+        if (cmp === 0 && n === 0) {
+          cmp = a.cells[1].textContent.trim().localeCompare(b.cells[1].textContent.trim());
+        }
+        return asc ? cmp : -cmp;
+      });
+
+      rows.forEach(r => tbody.appendChild(r));
+
+      // Update the sort-direction indicators on all sortable headers.
+      document.querySelectorAll('th.sortable').forEach(th => {
+        const span = th.querySelector('.sort-indicator');
+        if (span) span.textContent = '';
+      });
+      const activeTh = document.querySelectorAll('th.sortable')[n];
+      const activeSpan = activeTh ? activeTh.querySelector('.sort-indicator') : null;
+      if (activeSpan) activeSpan.textContent = asc ? ' ▲' : ' ▼';
+    }
+
+    async function load() {
+      // Load data
+      try {
+        const res = await fetch('/dkim?t=' + Date.now());
+        const data = await res.json();
+        const tbody = document.querySelector('#table tbody');
+        tbody.innerHTML = '';
+
+        // Update record count
+        const countEl = document.getElementById('record-count');
+        if (countEl) {
+          const word = data.length === 1 ? 'selector record' : 'selector records';
+          countEl.textContent = `${data.length} ${word}`;
+        }
+
+        data.forEach(r => {
+          const tr = document.createElement('tr');
+          if (r.changed) tr.classList.add('changed');
+
+          tr.innerHTML = `
+            <td>${r.domain}</td>
+            <td>${r.selector}</td>
+            <td class="txt-cell" title="${r.txt || ''}">${r.txt ? r.txt : '<span class="muted">None</span>'}</td>
+            <td>${new Date(r.last_checked).toLocaleString()}</td>
+            <td>${r.unchanged_for || 0} days</td>
+            <td>${r.key_length ? r.key_length + ' bit' : '-'}</td>
+            <td class="actions">
+              <button class="btn btn-secondary" onclick="editSelector('${r.domain}', '${r.selector}')" title="Edit">Edit</button>
+              <button class="btn btn-danger" onclick="deleteSelector('${r.domain}', '${r.selector}')" title="Delete">Delete</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (err) {
+        console.error('Failed to load DKIM records:', err);
+      }
+    }
+
+    async function deleteSelector(domain, selector) {
+      if (confirm(`Are you sure you want to delete ${domain} (${selector})?`)) {
+        try {
+          const res = await fetch(`/selectors/${domain}/${selector}`, { method: 'DELETE' });
+          if (res.ok) {
+            load();
+          } else {
+            alert('Failed to delete selector.');
+          }
+        } catch (err) {
+          alert('Error during deletion.');
+        }
+      }
+    }
+
+    async function editSelector(domain, selector) {
+      const newDomain = prompt("Enter new domain:", domain);
+      const newSelector = prompt("Enter new selector:", selector);
+      if (newDomain && newSelector) {
+        try {
+          const res = await fetch(`/selectors/${domain}/${selector}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domain: newDomain, selector: newSelector })
+          });
+          if (res.ok) {
+            load();
+          } else {
+            alert('Failed to update selector.');
+          }
+        } catch (err) {
+          alert('Error during update.');
+        }
+      }
+    }
+
+    // Run DKIM check on demand
+    document.getElementById('manual-check').addEventListener('click', async () => {
+      const btn = document.getElementById('manual-check');
+      btn.disabled = true;
+      btn.textContent = 'Checking...';
+      try {
+        const res = await fetch('/dkim/check', { method: 'POST' });
+        const data = await res.json();
+        alert(`DKIM check complete (${data.time || 'n/a'}).`);
+        load();
+      } catch (err) {
+        alert('DKIM check failed.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Run DKIM Check';
+      }
+    });
+
+    // Export CSV: fetch /dkim/export/csv and trigger a browser download
+    document.getElementById('export-csv').addEventListener('click', async () => {
+      const btn = document.getElementById('export-csv');
+      btn.disabled = true;
+      btn.textContent = 'Exporting...';
+      try {
+        const res = await fetch('/dkim/export/csv');
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'dkim_records.csv';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } catch (err) {
+        alert('CSV export failed.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Export CSV';
+      }
+    });
+
+    load();
+  </script>
+</body>
+</html>

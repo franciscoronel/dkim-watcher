@@ -1,0 +1,11 @@
+# Cron job to run the check script every day at 02:00 UTC
+0 2 * * * root /usr/local/bin/dkim_check.sh
+
+# Daily backup at 03:00 UTC
+0 3 * * * root /usr/local/bin/backup_daily.sh
+
+# Weekly backup at 04:00 UTC on Sunday
+0 4 * * 0 root /usr/local/bin/backup_weekly.sh
+
+# Monthly backup at 05:00 UTC on the 1st
+0 5 1 * * root /usr/local/bin/backup_monthly.sh

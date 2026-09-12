@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add New Selector</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Add New Selector</h1>
+      <div class="toolbar">
+        <a href="/" class="btn btn-secondary">Back to List</a>
+      </div>
+    </header>
+    <main>
+      <form id="selector-form" action="/selectors/new" method="post" enctype="multipart/form-data" class="card">
+        <div class="form-group">
+          <label for="domain">Domain</label>
+          <input type="text" id="domain" name="domain" placeholder="example.com">
+        </div>
+        <div class="form-group">
+          <label for="selector">Selector</label>
+          <input type="text" id="selector" name="selector" placeholder="google._domainkey">
+        </div>
+        <hr>
+        <h3>Bulk CSV Import</h3>
+        <p>Optional CSV import: each line can contain a domain and selector separated by a comma. Column headers are ignored, so you can just paste the data or upload a file that starts with a header row – it will be skipped automatically.</p>
+        <div class="form-group">
+          <label for="csv_file">Upload CSV File</label>
+          <input type="file" id="csv_file" name="csv_file" accept=".csv">
+        </div>
+        <button type="submit" class="btn btn-primary">Add Selector</button>
+      </form>
+    </main>
+  </div>
+  <script>
+    document.getElementById('selector-form').addEventListener('submit', function (e) {
+      const domain = document.getElementById('domain').value.trim();
+      const selector = document.getElementById('selector').value.trim();
+      const csvFile = document.getElementById('csv_file').files[0];
+
+      // Only require domain + selector when no CSV file is attached
+      if (!csvFile && (!domain || !selector)) {
+        e.preventDefault();
+        alert('Please enter a domain and selector, or upload a CSV file.');
+        return;
+      }
+    });
+  </script>
+</body>
+</html>
