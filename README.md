@@ -42,7 +42,7 @@ Replace `YOUR_TUNNEL_TOKEN` with your actual Cloudflare Tunnel token:
 docker build -t dkim-watcher .
 
 docker run -d \
-  --name hermes_dkim \
+  --name dkim-watcher \
   --read-only \
   --cap-drop ALL \
   --pids-limit 50 \
@@ -66,7 +66,7 @@ If you don't have a Cloudflare Tunnel, start the container without the tunnel an
 docker build -t dkim-watcher .
 
 docker run -d \
-  --name hermes_dkim \
+  --name dkim-watcher \
   --read-only \
   --cap-drop ALL \
   --pids-limit 50 \
