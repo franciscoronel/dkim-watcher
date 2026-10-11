@@ -2,7 +2,7 @@
 # DKIM Watcher entrypoint — hardened
 # Starts the cloudflared tunnel and uvicorn.
 # (No cron here: periodic DKIM checks run via APScheduler inside the app, and
-# database backups run from the host-side cron on the Hermes machine.)
+# database backups are expected to run from a host-side cron on the host.)
 
 set -eo pipefail
 
