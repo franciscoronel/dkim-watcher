@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
 import os
+import re
 from fastapi import FastAPI, Depends, Form, Request, UploadFile, File
 from typing import Optional
 from fastapi.staticfiles import StaticFiles
@@ -13,8 +14,35 @@ from dkim import compare_and_update
 # Ensure DB is created BEFORE starting FastAPI and APScheduler
 init_db()
 
-app = FastAPI(title="DKIM Watcher")
+# Docs/redoc/OpenAPI are disabled in production: they expose the whole API
+# surface to anyone who reaches the origin.
+app = FastAPI(title="DKIM Watcher", docs_url=None, redoc_url=None, openapi_url=None)
 
+# Defense-in-depth CSP for HTML responses. Inline scripts are used by the UI,
+# so script-src must allow 'unsafe-inline'; everything else is locked down.
+_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self'; "
+    "img-src 'self' data:; "
+    "object-src 'none'; "
+    "base-uri 'self'; "
+    "frame-ancestors 'none'"
+)
+
+
+@app.middleware("http")
+async def csp_header(request: Request, call_next):
+    response = await call_next(request)
+    ctype = response.headers.get("content-type", "")
+    if ctype.startswith("text/html"):
+        response.headers["content-security-policy"] = _CSP
+    return response
+
+
+# Limits for CSV bulk import
+MAX_CSV_BYTES = 1_000_000
+MAX_CSV_ROWS = 5_000
 
 # Scheduler: run every day at 02:00 UTC
 scheduler = BackgroundScheduler()
@@ -110,12 +138,13 @@ def manual_check(db: SessionLocal = Depends(get_db)):
     return {"status": "checked", "time": datetime.utcnow()}
 
 # Serve the static UI
-app.mount("/static", StaticFiles(directory="/app/static"), name="static")
+STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/")
 def read_index():
-    response = FileResponse("/app/static/index.html")
+    response = FileResponse(os.path.join(STATIC_DIR, "index.html"))
     response.headers["cache-control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["pragma"] = "no-cache"
     response.headers["expires"] = "0"
@@ -123,17 +152,48 @@ def read_index():
 
 @app.get("/selectors/new")
 def new_selector_form():
-    response = FileResponse("/app/static/new_selector.html")
+    response = FileResponse(os.path.join(STATIC_DIR, "new_selector.html"))
     response.headers["cache-control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["pragma"] = "no-cache"
     response.headers["expires"] = "0"
     return response
 
-def _add_selector_pair(db, domain: str, selector: str, added: list, duplicates: list):
+def _valid_dns_label(value: str) -> bool:
+    """A DNS label as used in practice for DKIM selectors: 1-63 chars of
+    letters/digits/hyphen/underscore, no leading or trailing hyphen.
+    Underscores are allowed because selectors like `google._domainkey` are common."""
+    if not value or len(value) > 63:
+        return False
+    if not re.fullmatch(r"[a-z0-9_][-a-z0-9_]*", value):
+        return False
+    return not (value.startswith("-") or value.endswith("-"))
+
+
+def _valid_domain(value: str) -> bool:
+    """Dot-separated DNS labels, at least two labels, total length <= 253."""
+    if not value or len(value) > 253:
+        return False
+    labels = value.split(".")
+    if len(labels) < 2:
+        return False
+    return all(_valid_dns_label(l) for l in labels)
+
+
+def _valid_selector(value: str) -> bool:
+    """Selectors may contain dots (e.g. google._domainkey), each part a DNS label."""
+    if not value or len(value) > 127:
+        return False
+    return all(_valid_dns_label(l) for l in value.split("."))
+
+
+def _add_selector_pair(db, domain: str, selector: str, added: list, duplicates: list, invalid: list):
     """Insert a DKIMSelector + DKIMRecord pair if not already present."""
     domain = domain.strip().lower()
     selector = selector.strip().lower()
     if not domain or not selector:
+        return
+    if not _valid_domain(domain) or not _valid_selector(selector):
+        invalid.append(f"{domain}::{selector}")
         return
     existing = db.query(DKIMSelector).filter_by(domain=domain, selector=selector).first()
     if existing:
@@ -157,10 +217,15 @@ async def add_selector(
         content = await csv_file.read()
         if not content:
             return {"status": "error", "message": "CSV file is empty"}
-        reader = csv.reader(content.decode().splitlines())
+        if len(content) > MAX_CSV_BYTES:
+            return {"status": "error", "message": f"CSV file too large (max {MAX_CSV_BYTES} bytes)"}
+        reader = csv.reader(content.decode("utf-8", errors="replace").splitlines())
         added = []
         duplicates = []
+        invalid = []
         rows = list(reader)
+        if len(rows) > MAX_CSV_ROWS:
+            return {"status": "error", "message": f"Too many CSV rows (max {MAX_CSV_ROWS})"}
         # Skip a header row if present (domain,selector / selector,domain)
         if rows and rows[0] and rows[0][0].strip().lower() in ("domain", "selector"):
             rows = rows[1:]
@@ -178,20 +243,27 @@ async def add_selector(
                 dom, sel = row[0].strip(), row[1].strip()
             else:
                 continue
-            _add_selector_pair(db, dom, sel, added, duplicates)
+            _add_selector_pair(db, dom, sel, added, duplicates, invalid)
         db.commit()
-        return {"status": "csv_imported", "added": added, "duplicates": duplicates}
+        return {"status": "csv_imported", "added": added, "duplicates": duplicates, "invalid": invalid}
 
     # Single form path
     if not domain or not selector:
         return {"status": "error", "message": "Domain and Selector are required if no CSV is provided"}
+    clean_domain = domain.strip().lower()
+    clean_selector = selector.strip().lower()
+    if not _valid_domain(clean_domain) or not _valid_selector(clean_selector):
+        return {"status": "error", "message": "Invalid domain or selector (letters, digits, hyphens, underscores and dots only)"}
     added = []
     duplicates = []
-    _add_selector_pair(db, domain, selector, added, duplicates)
+    invalid = []
+    _add_selector_pair(db, clean_domain, clean_selector, added, duplicates, invalid)
     db.commit()
+    if invalid:
+        return {"status": "error", "message": "Invalid domain or selector"}
     if duplicates:
         return {"status": "error", "message": f"Selector already exists: {duplicates[0]}"}
-    return {"status": "added", "domain": domain.strip().lower(), "selector": selector.strip().lower()}
+    return {"status": "added", "domain": clean_domain, "selector": clean_selector}
 
 # List selectors
 @app.get("/selectors")
@@ -227,12 +299,20 @@ def update_selector(domain: str, selector: str, body: SelectorUpdate, db: Sessio
     sel = db.query(DKIMSelector).filter_by(domain=domain, selector=selector).first()
     if not sel:
         return {"status": "not_found"}
-    sel.domain = body.domain or sel.domain
-    sel.selector = body.selector or sel.selector
+    new_domain = (body.domain or sel.domain).strip().lower()
+    new_selector = (body.selector or sel.selector).strip().lower()
+    if not _valid_domain(new_domain) or not _valid_selector(new_selector):
+        return {"status": "error", "message": "Invalid domain or selector"}
+    # Reject a rename that would collide with an existing pair
+    collision = db.query(DKIMSelector).filter_by(domain=new_domain, selector=new_selector).first()
+    if collision and (collision.domain, collision.selector) != (sel.domain, sel.selector):
+        return {"status": "error", "message": f"Selector already exists: {new_domain}::{new_selector}"}
+    sel.domain = new_domain
+    sel.selector = new_selector
     # Keep the record table in sync
     rec = db.query(DKIMRecord).filter_by(domain=domain, selector=selector).first()
     if rec:
-        rec.domain = body.domain or rec.domain
-        rec.selector = body.selector or rec.selector
+        rec.domain = new_domain
+        rec.selector = new_selector
     db.commit()
     return {"status": "updated"}

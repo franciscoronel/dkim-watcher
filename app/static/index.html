@@ -21,12 +21,12 @@
       <table id="table">
         <thead>
           <tr>
-            <th class="sortable" onclick="sortTable(0)">Domain <span class="sort-indicator"></span></th>
+            <th class="sortable" data-sort-col="0" onclick="sortTable(0)" title="Sort by domain">Domain <span class="sort-indicator"></span></th>
             <th>Selector</th>
             <th>TXT Record</th>
             <th>Last Checked</th>
-            <th class="sortable" onclick="sortTable(4)">Unchanged For <span class="sort-indicator"></span></th>
-            <th class="sortable" onclick="sortTable(5)">Key Length <span class="sort-indicator"></span></th>
+            <th class="sortable" data-sort-col="4" onclick="sortTable(4)" title="Sort by days unchanged">Unchanged For <span class="sort-indicator"></span></th>
+            <th class="sortable" data-sort-col="5" onclick="sortTable(5)" title="Sort by key length">Key Length <span class="sort-indicator"></span></th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -38,16 +38,33 @@
   </div>
 
   <script>
-    // Sort the table by column index (0 = Domain, 4 = Unchanged For).
-    // Global scope so the onclick handlers in <th> can reach it.
+    // Sort state lives in the table's dataset so it survives a data refresh.
+    // sortTable() toggles the requested column; applySort() reorders the rows
+    // and paints the header indicators. Global scope for the <th> onclicks.
     function sortTable(n) {
       const table = document.getElementById('table');
-      const tbody = table.tBodies[0];
-      const rows = Array.from(tbody.rows);
-
       const asc = table.dataset.sortCol !== n.toString() || table.dataset.sortAsc !== 'true';
       table.dataset.sortCol = n.toString();
       table.dataset.sortAsc = asc ? 'true' : 'false';
+      applySort();
+    }
+
+    function applySort() {
+      const table = document.getElementById('table');
+      const tbody = table.tBodies[0];
+      const col = table.dataset.sortCol;
+
+      // No active sort: show the neutral hint on every sortable header.
+      const sortableThs = Array.from(document.querySelectorAll('th.sortable'));
+      sortableThs.forEach(th => {
+        const span = th.querySelector('.sort-indicator');
+        if (span) span.textContent = '';
+        th.classList.remove('sorted');
+      });
+      if (col === undefined) return;
+
+      const n = parseInt(col, 10);
+      const asc = table.dataset.sortAsc === 'true';
 
       // Get numeric value from cell text (handles "2048 bit", "0 days", etc.)
       const getNum = (text) => {
@@ -55,6 +72,7 @@
         return m ? parseFloat(m[1]) : NaN;
       };
 
+      const rows = Array.from(tbody.rows);
       rows.sort((a, b) => {
         const aText = a.cells[n].textContent.trim();
         const bText = b.cells[n].textContent.trim();
@@ -71,17 +89,16 @@
         }
         return asc ? cmp : -cmp;
       });
-
       rows.forEach(r => tbody.appendChild(r));
 
-      // Update the sort-direction indicators on all sortable headers.
-      document.querySelectorAll('th.sortable').forEach(th => {
-        const span = th.querySelector('.sort-indicator');
-        if (span) span.textContent = '';
-      });
-      const activeTh = document.querySelectorAll('th.sortable')[n];
+      // Paint the active header. Match on the data-sort-col attribute: a column
+      // index is NOT an index into the .sortable node list (Domain=0 happened to
+      // match, Unchanged For=4 and Key Length=5 did not), which is why only
+      // Domain ever showed an arrow.
+      const activeTh = sortableThs.find(th => th.dataset.sortCol === col);
       const activeSpan = activeTh ? activeTh.querySelector('.sort-indicator') : null;
       if (activeSpan) activeSpan.textContent = asc ? ' ▲' : ' ▼';
+      if (activeTh) activeTh.classList.add('sorted');
     }
 
     async function load() {
@@ -103,20 +120,66 @@
           const tr = document.createElement('tr');
           if (r.changed) tr.classList.add('changed');
 
-          tr.innerHTML = `
-            <td>${r.domain}</td>
-            <td>${r.selector}</td>
-            <td class="txt-cell" title="${r.txt || ''}">${r.txt ? r.txt : '<span class="muted">None</span>'}</td>
-            <td>${new Date(r.last_checked).toLocaleString()}</td>
-            <td>${r.unchanged_for || 0} days</td>
-            <td>${r.key_length ? r.key_length + ' bit' : '-'}</td>
-            <td class="actions">
-              <button class="btn btn-secondary" onclick="editSelector('${r.domain}', '${r.selector}')" title="Edit">Edit</button>
-              <button class="btn btn-danger" onclick="deleteSelector('${r.domain}', '${r.selector}')" title="Delete">Delete</button>
-            </td>
-          `;
+          // Build cells with textContent / setAttribute — never innerHTML with
+          // interpolated data. r.txt comes from a public DNS TXT record, so
+          // anyone controlling a monitored domain could otherwise inject markup.
+          const cell = (cls) => {
+            const td = document.createElement('td');
+            if (cls) td.className = cls;
+            return td;
+          };
+
+          const tdDomain = cell();
+          tdDomain.textContent = r.domain;
+          tr.appendChild(tdDomain);
+
+          const tdSelector = cell();
+          tdSelector.textContent = r.selector;
+          tr.appendChild(tdSelector);
+
+          const tdTxt = cell('txt-cell');
+          tdTxt.setAttribute('title', r.txt || '');
+          if (r.txt) {
+            tdTxt.textContent = r.txt;
+          } else {
+            const muted = document.createElement('span');
+            muted.className = 'muted';
+            muted.textContent = 'None';
+            tdTxt.appendChild(muted);
+          }
+          tr.appendChild(tdTxt);
+
+          const tdChecked = cell();
+          tdChecked.textContent = new Date(r.last_checked).toLocaleString();
+          tr.appendChild(tdChecked);
+
+          const tdUnchanged = cell();
+          tdUnchanged.textContent = `${r.unchanged_for || 0} days`;
+          tr.appendChild(tdUnchanged);
+
+          const tdKey = cell();
+          tdKey.textContent = r.key_length ? `${r.key_length} bit` : '-';
+          tr.appendChild(tdKey);
+
+          const tdActions = cell('actions');
+          const mkBtn = (label, cls, title, handler) => {
+            const b = document.createElement('button');
+            b.className = `btn ${cls}`;
+            b.textContent = label;
+            b.title = title;
+            b.addEventListener('click', handler);
+            return b;
+          };
+          tdActions.appendChild(mkBtn('Edit', 'btn-secondary', 'Edit', () => editSelector(r.domain, r.selector)));
+          tdActions.appendChild(mkBtn('Delete', 'btn-danger', 'Delete', () => deleteSelector(r.domain, r.selector)));
+          tr.appendChild(tdActions);
+
           tbody.appendChild(tr);
         });
+
+        // Re-apply the user's current sort to the freshly loaded rows so the
+        // arrow and the row order stay consistent after a refresh.
+        applySort();
       } catch (err) {
         console.error('Failed to load DKIM records:', err);
       }

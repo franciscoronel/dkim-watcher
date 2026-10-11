@@ -1,9 +1,11 @@
-# requirements.txt
-fastapi
-uvicorn[standard]
-sqlalchemy
-pydantic
-dnspython
-apscheduler
-python-multipart
-cryptography
+# Pinned dependency set for the DKIM Watcher image.
+# Exact versions verified clean by pip-audit (OSV) against the deployed image
+# on 2026-10-11. Update deliberately, with a rebuild + verification.
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+sqlalchemy==2.0.52
+pydantic==2.13.5
+dnspython==2.8.0
+apscheduler==3.11.3
+python-multipart==0.0.32
+cryptography==50.0.1

@@ -36,16 +36,46 @@
     </main>
   </div>
   <script>
-    document.getElementById('selector-form').addEventListener('submit', function (e) {
+    document.getElementById('selector-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const form = e.target;
+      const btn = form.querySelector('button[type=submit]');
       const domain = document.getElementById('domain').value.trim();
       const selector = document.getElementById('selector').value.trim();
       const csvFile = document.getElementById('csv_file').files[0];
 
       // Only require domain + selector when no CSV file is attached
       if (!csvFile && (!domain || !selector)) {
-        e.preventDefault();
         alert('Please enter a domain and selector, or upload a CSV file.');
         return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Adding...';
+      try {
+        const res = await fetch('/selectors/new', { method: 'POST', body: new FormData(form) });
+        const data = await res.json();
+        if (data.status === 'error') {
+          // Duplicate or rejected input: stay here so the user can correct it
+          alert(data.message || 'Failed to add selector.');
+          btn.disabled = false;
+          btn.textContent = 'Add Selector';
+          return;
+        }
+        if (data.status === 'csv_imported' && !(data.added || []).length) {
+          // Nothing imported: report why instead of redirecting silently
+          const skipped = [...(data.duplicates || []), ...(data.invalid || [])];
+          alert(skipped.length ? `Nothing imported. Skipped: ${skipped.join(', ')}` : 'Nothing imported.');
+          btn.disabled = false;
+          btn.textContent = 'Add Selector';
+          return;
+        }
+        // Success: go back to the main list
+        window.location.href = '/';
+      } catch (err) {
+        alert('Submission failed.');
+        btn.disabled = false;
+        btn.textContent = 'Add Selector';
       }
     });
   </script>
