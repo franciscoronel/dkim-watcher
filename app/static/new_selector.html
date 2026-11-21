@@ -3,6 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- dark-mode guide: declare supported schemes before CSS (no un-themed flash) -->
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f5f7">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121212">
   <title>Add New Selector</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -10,32 +14,54 @@
   <div class="container">
     <header>
       <h1>Add New Selector</h1>
-      <div class="toolbar">
-        <a href="/" class="btn btn-secondary">Back to List</a>
-      </div>
+      <nav aria-label="Site">
+        <ul>
+          <li><a href="/">Dashboard</a></li>
+          <li><a href="/selectors/new" aria-current="page">Add Selector</a></li>
+        </ul>
+      </nav>
     </header>
     <main>
+      <!-- forms guide: labels wired to inputs, help text referenced via
+           aria-describedby, type/autocomplete/enterkeyhint hints per field.
+           No `required` attribute: CSV-only submission is valid (G8, 2026-10-11);
+           the submit guard enforces the conditional requirement. -->
       <form id="selector-form" action="/selectors/new" method="post" enctype="multipart/form-data" class="card">
-        <div class="form-group">
-          <label for="domain">Domain</label>
-          <input type="text" id="domain" name="domain" placeholder="example.com">
-        </div>
-        <div class="form-group">
-          <label for="selector">Selector</label>
-          <input type="text" id="selector" name="selector" placeholder="google._domainkey">
+        <div class="fields">
+          <label for="domain">Domain
+            <input type="text" id="domain" name="domain" placeholder="example.com"
+                   autocomplete="off" spellcheck="false" enterkeyhint="next"
+                   aria-describedby="domain-help">
+            <span class="field-help" id="domain-help">e.g. example.com — required unless a CSV file is attached</span>
+          </label>
+          <label for="selector">Selector
+            <input type="text" id="selector" name="selector" placeholder="google._domainkey"
+                   autocomplete="off" spellcheck="false" enterkeyhint="done"
+                   aria-describedby="selector-help">
+            <span class="field-help" id="selector-help">e.g. google._domainkey — required unless a CSV file is attached</span>
+          </label>
         </div>
         <hr>
         <h3>Bulk CSV Import</h3>
-        <p>Optional CSV import: each line can contain a domain and selector separated by a comma. Column headers are ignored, so you can just paste the data or upload a file that starts with a header row – it will be skipped automatically.</p>
-        <div class="form-group">
-          <label for="csv_file">Upload CSV File</label>
-          <input type="file" id="csv_file" name="csv_file" accept=".csv">
+        <p id="csv-help">Optional CSV import: each line can contain a domain and selector separated by a comma. Column headers are ignored, so you can just paste the data or upload a file that starts with a header row – it will be skipped automatically.</p>
+        <div class="fields">
+          <label for="csv_file">Upload CSV File
+            <input type="file" id="csv_file" name="csv_file" accept=".csv,text/csv" aria-describedby="csv-help">
+          </label>
         </div>
-        <button type="submit" class="btn btn-primary">Add Selector</button>
+        <p id="form-status" role="status" aria-live="polite"></p>
+        <button type="submit" class="btn btn-primary"><span class="icon" aria-hidden="true" style="--icon-start: var(--icon-plus)"></span>Add Selector</button>
       </form>
     </main>
   </div>
   <script>
+    function announce(msg) {
+      // accessibility guide: inline live region replaces alert() popups
+      const el = document.getElementById('form-status');
+      el.textContent = '';
+      requestAnimationFrame(() => { el.textContent = msg; });
+    }
+
     document.getElementById('selector-form').addEventListener('submit', async function (e) {
       e.preventDefault();
       const form = e.target;
@@ -46,38 +72,60 @@
 
       // Only require domain + selector when no CSV file is attached
       if (!csvFile && (!domain || !selector)) {
-        alert('Please enter a domain and selector, or upload a CSV file.');
+        announce('Please enter a domain and selector, or upload a CSV file.');
+        // validate-input-after-interaction guide: surface native invalid state
+        // on the empty fields the user skipped, timed to this interaction
+        if (!domain) {
+          const d = document.getElementById('domain');
+          d.setCustomValidity('Required unless a CSV file is attached');
+          d.reportValidity();
+        }
+        if (!selector) {
+          const s = document.getElementById('selector');
+          s.setCustomValidity('Required unless a CSV file is attached');
+          s.reportValidity();
+        }
         return;
       }
+      // clear any previous custom validity so the fields validate cleanly
+      document.getElementById('domain').setCustomValidity('');
+      document.getElementById('selector').setCustomValidity('');
 
       btn.disabled = true;
-      btn.textContent = 'Adding...';
+      btn.setAttribute('aria-busy', 'true');
       try {
         const res = await fetch('/selectors/new', { method: 'POST', body: new FormData(form) });
         const data = await res.json();
         if (data.status === 'error') {
           // Duplicate or rejected input: stay here so the user can correct it
-          alert(data.message || 'Failed to add selector.');
+          announce(data.message || 'Failed to add selector.');
           btn.disabled = false;
-          btn.textContent = 'Add Selector';
+          btn.removeAttribute('aria-busy');
           return;
         }
         if (data.status === 'csv_imported' && !(data.added || []).length) {
           // Nothing imported: report why instead of redirecting silently
           const skipped = [...(data.duplicates || []), ...(data.invalid || [])];
-          alert(skipped.length ? `Nothing imported. Skipped: ${skipped.join(', ')}` : 'Nothing imported.');
+          announce(skipped.length ? `Nothing imported. Skipped: ${skipped.join(', ')}` : 'Nothing imported.');
           btn.disabled = false;
-          btn.textContent = 'Add Selector';
+          btn.removeAttribute('aria-busy');
           return;
         }
         // Success: go back to the main list
+        announce('Added. Returning to dashboard…');
         window.location.href = '/';
       } catch (err) {
-        alert('Submission failed.');
+        announce('Submission failed.');
         btn.disabled = false;
-        btn.textContent = 'Add Selector';
+        btn.removeAttribute('aria-busy');
       }
     });
+
+    // validate-input-after-interaction: custom validity must not linger after
+    // the user starts fixing the field
+    for (const id of ['domain', 'selector']) {
+      document.getElementById(id).addEventListener('input', (e) => e.target.setCustomValidity(''));
+    }
   </script>
 </body>
 </html>

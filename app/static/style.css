@@ -1,15 +1,48 @@
+/* DKIM Watcher — modernized stylesheet (2026-11-21)
+ * Guides applied (Chrome Modern Web Guidance): dark-mode, css, navbar,
+ * responsive-table, sortable-table, forms, icons, spinner, card,
+ * form-factor-adaptation. Policy: AGENTS.md.
+ * Identity kept: Material dark palette (primary #bb86fc, secondary #03dac6).
+ */
+
+/* icons guide: non-inheriting icon slots so an icon set on a button does not
+ * leak into its descendants */
+@property --icon-start { syntax: "*"; inherits: false }
+@property --icon-end { syntax: "*"; inherits: false }
+
 :root {
-  --bg-color: #121212;
-  --surface-color: #1e1e1e;
-  --primary-color: #bb86fc;
-  --secondary-color: #03dac6;
-  --error-color: #cf6679;
-  --text-primary: #e1e1e1;
-  --text-secondary: #a0a0a0;
-  --border-color: #333333;
-  --row-hover: #2c2c2c;
-  --changed-bg: rgba(207, 102, 121, 0.2);
+  /* dark-mode guide: declare both schemes at the ROOT — adapts scrollbars,
+   * form controls, and the initial canvas (with <meta name=color-scheme>) */
+  color-scheme: light dark;
+
+  /* Design tokens via light-dark() — no parallel media-query palettes */
+  --bg-color: light-dark(#f4f5f7, #121212);
+  --surface-color: light-dark(#ffffff, #1e1e1e);
+  --primary-color: light-dark(#7b2ff7, #bb86fc);
+  --secondary-color: light-dark(#00696a, #03dac6);
+  --error-color: light-dark(#b3261e, #cf6679);
+  --text-primary: light-dark(#1a1c22, #e1e1e1);
+  --text-secondary: light-dark(#5a5f6a, #a0a0a0);
+  --border-color: light-dark(#d6d9e0, #333333);
+  --row-hover: light-dark(#edeef2, #2c2c2c);
+  --row-alt: light-dark(#f8f9fb, #191919);
+  --changed-bg: light-dark(rgb(232 150 40 / 0.18), rgb(207 102 121 / 0.2));
+  --changed-edge: light-dark(#b45309, #cf6679);
+  --focus-color: light-dark(#7b2ff7, #bb86fc);
+  --scrollbar-thumb: light-dark(#c6cad4, #3a3a3a);
+  --scrollbar-track: light-dark(#eceef2, #171717);
+  --accent-contrast: light-dark(#ffffff, #000000);
+
+  --radius: 8px;
+  --icon-style-color: currentColor;
+
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+
+  /* navbar guide: allows `height: auto` transitions for future slide-outs */
+  interpolate-size: allow-keywords;
 }
+
+* { box-sizing: border-box; }
 
 body {
   background-color: var(--bg-color);
@@ -20,6 +53,12 @@ body {
   flex-direction: column;
   align-items: center;
   min-height: 100vh;
+  line-height: 1.5;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus-color);
+  outline-offset: 2px;
 }
 
 h1 {
@@ -33,12 +72,13 @@ h1 {
   margin: 2rem 0;
   background-color: var(--surface-color);
   padding: 1.5rem;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 20px rgb(0 0 0 / 0.5);
 }
 
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 1rem;
   margin-bottom: 1.5rem;
@@ -49,24 +89,79 @@ button, .btn {
   border-radius: 4px;
   border: none;
   cursor: pointer;
+  font: inherit;
   font-weight: 600;
-  transition: opacity 0.2s, transform 0.1s;
+  transition: opacity 0.2s, transform 0.1s, border-color 0.2s;
   text-decoration: none;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  white-space: nowrap;
+  min-height: 44px; /* form-factor-adaptation: touch targets */
+  color: var(--accent-contrast);
 }
 
-button:active, .btn:active {
-  transform: translateY(1px);
+button:active, .btn:active { transform: translateY(1px); }
+button:disabled { opacity: 0.6; cursor: progress; }
+
+.btn-primary { background-color: var(--primary-color); }
+.btn-secondary { background-color: var(--secondary-color); }
+.btn-danger { background-color: var(--error-color); }
+
+/* ============ Icons (icons guide): CSS mask, follows currentColor ============
+ * Masks use longhands (shorthand var() indirection resets to none on some
+ * engines); the icon slot is assigned in CSS, never via inline style. */
+.icon:empty {
+  content: "";
+  flex: none;
+  inline-size: var(--icon-style-size, 1.15em);
+  block-size: var(--icon-style-size, 1.15em);
+  background-color: var(--icon-style-color, currentColor);
+  mask-image: var(--icon, var(--icon-start, none));
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  forced-color-adjust: none; /* icons guide: keep mask fill in forced-colors */
 }
 
-.btn-primary { background-color: var(--primary-color); color: #000; }
-.btn-secondary { background-color: var(--secondary-color); color: #000; }
-.btn-danger { background-color: var(--error-color); color: #fff; }
+#manual-check .icon { --icon: var(--icon-check); }
+#export-csv .icon { --icon: var(--icon-download); }
+#selector-form button[type="submit"] .icon { --icon: var(--icon-plus); }
+
+:root {
+  --icon-sort-asc: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5'%3E%3Cpath d='M12 19V5M5 12l7-7 7 7'/%3E%3C/svg%3E");
+  --icon-sort-desc: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5'%3E%3Cpath d='M12 5v14M19 12l-7 7-7-7'/%3E%3C/svg%3E");
+  --icon-sort-neutral: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M8 9l4-5 4 5M8 15l4 5 4-5'/%3E%3C/svg%3E");
+  --icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+  --icon-download: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M12 3v12m0 0 5-5m-5 5-5-5M4 21h16'/%3E%3C/svg%3E");
+  --icon-plus: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E");
+}
+
+/* ============ Table: responsive-table + sortable-table guides ============ */
+/* The wrapper is the scroll container: keyboard-scrollable labelled region,
+ * sticky-header context, and a size container for @container queries */
+.table-wrapper {
+  overflow: auto;
+  max-height: 72vh;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  container-type: inline-size;
+}
 
 table {
   width: 100%;
+  min-width: 720px; /* horizontal scroll before the stacked layout kicks in */
   border-collapse: collapse;
   margin-top: 0.5rem;
+}
+
+caption {
+  caption-side: top;
+  text-align: start;
+  padding: 12px 16px 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
 }
 
 th {
@@ -77,47 +172,63 @@ th {
   font-size: 0.85rem;
   padding: 12px 16px;
   border-bottom: 2px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-color); /* covers rows during scroll */
 }
 
-/* Sortable column headers: make it obvious they are clickable. */
-th.sortable {
+/* sortable-table guide: the clickable control is a <button> inside
+ * <th scope="col"> — the th itself is never the control */
+th.sortable button {
+  all: inherit;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  width: 100%;
+  padding: inherit;
   cursor: pointer;
-  user-select: none;
-  color: var(--text-primary);
 }
 
-th.sortable:hover {
-  color: var(--primary-color);
-}
+th.sortable button:hover { color: var(--primary-color); }
 
-/* Faint up/down chevron on every sortable header, even before it is used.
-   Must stay clearly visible against --surface-color (#1e1e1e); --border-color
-   (#333) is too close to the background to read as a glyph. */
-th.sortable .sort-indicator::before {
-  content: " ↕";
-  color: #8a8a8a;
-  font-size: 0.95rem;
-}
-
-/* Once a column is the active sort, show its direction in the accent colour. */
-th.sortable.sorted {
-  color: var(--primary-color);
-  border-bottom-color: var(--primary-color);
-}
-
-th.sortable.sorted .sort-indicator::before {
+/* Direction icon driven purely by aria-sort (sortable-table guide):
+ * "Drive its appearance from th[aria-sort] in CSS, not from extra classes
+ * or JavaScript." The neutral chevron stays visible before first use. */
+th.sortable button::after {
   content: "";
+  flex: none;
+  margin-inline-start: auto;
+  inline-size: 1.05em;
+  block-size: 1.05em;
+  background-color: #8a8a8a;
+  mask-image: var(--icon-sort-neutral);
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  forced-color-adjust: none;
 }
 
-th.sortable.sorted .sort-indicator {
-  color: var(--primary-color);
-}
+th[aria-sort] button::after { background-color: var(--primary-color); }
+th[aria-sort="ascending"] button::after { mask-image: var(--icon-sort-asc); }
+th[aria-sort="descending"] button::after { mask-image: var(--icon-sort-desc); }
 
 td {
   padding: 12px 16px;
   border-bottom: 1px solid var(--border-color);
   font-size: 0.95rem;
 }
+
+tbody tr:nth-child(2n) { background-color: var(--row-alt); }
+tbody tr:hover { background-color: var(--row-hover); }
+
+/* Changed-record highlight: edge mark + tint, not color alone (WCAG 1.4.1) */
+tbody tr.changed {
+  background-color: var(--changed-bg);
+  box-shadow: inset 4px 0 0 var(--changed-edge);
+}
+
+tbody tr[aria-busy="true"] { content-visibility: auto; } /* INP guide */
 
 .btn-icon {
   background: none;
@@ -128,9 +239,7 @@ td {
   transition: transform 0.1s;
 }
 
-.btn-icon:hover {
-  transform: scale(1.2);
-}
+.btn-icon:hover { transform: scale(1.2); }
 
 .edit-btn { color: var(--secondary-color); }
 .delete-btn { color: var(--error-color); }
@@ -143,34 +252,250 @@ td {
   color: var(--text-secondary);
 }
 
+/* Native hint expansion on engines supporting animations-timeline;
+ * the [title] attribute remains the universal fallback */
+@supports (animation-timeline: scroll()) {
+  .txt-cell:popover-open {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    background-color: var(--surface-color);
+  }
+}
+
 .muted {
   font-style: italic;
   opacity: 0.6;
 }
 
+/* Empty state (dashboard has no rows yet) */
+tr.empty-state td {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 2.5rem 1rem;
+  font-style: italic;
+}
+
 header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 1rem;
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 1rem;
   margin-bottom: 1.5rem;
 }
 
-@media (max-width: 768px) {
-  header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
+/* navbar guide: current page is marked with aria-current, conveyed by
+ * weight + underline + fill, never by color alone */
+header nav ul {
+  list-style: none;
+  display: flex;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+}
+
+header nav a {
+  color: var(--text-primary);
+  text-decoration: none;
+  padding: 0.5rem 0.9rem;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+}
+
+header nav a:hover { background-color: var(--row-hover); color: var(--primary-color); }
+
+header nav a[aria-current="page"] {
+  font-weight: 700;
+  color: var(--primary-color);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 5px;
+  background-color: var(--row-hover);
+}
+
+/* ============ Stacked table on narrow containers (responsive-table guide)
+ * Uses @container, not @media: the table adapts to its own width ============ */
+@container (width < 640px) {
+  table { min-width: 0; }
+  caption { display: none; }
+  thead { display: none; }
+  tbody tr {
+    display: block;
+    margin: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.25rem 0.75rem;
   }
-  .toolbar {
-    width: 100%;
-    justify-content: flex-start;
+  tbody td {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1rem;
+    border-bottom: none;
+  }
+  /* Header labels are injected as generated content so the hidden <thead>
+     does not cost the cells their accessible names */
+  tbody td::before { content: var(--label); color: var(--text-secondary); font-weight: 700; }
+  tbody td:nth-child(1) { --label: "Domain"; }
+  tbody td:nth-child(2) { --label: "Selector"; }
+  tbody td:nth-child(3) { --label: "DKIM TXT"; }
+  tbody td:nth-child(4) { --label: "Last Checked"; }
+  tbody td:nth-child(5) { --label: "Unchanged For"; }
+  tbody td:nth-child(6) { --label: "Key Length"; }
+  tbody td:nth-child(7) { --label: "Actions"; }
+  .txt-cell { max-width: none; white-space: normal; overflow-wrap: anywhere; }
+  tr.empty-state td { display: block; }
+}
+
+/* ============ Dialog (dialog guide) ============ */
+/* Both containment rules are mandatory: without them the page scrolls behind
+ * the open modal (scroll-containment guide) */
+html:has(dialog[open]) {
+  overflow: clip;
+  overscroll-behavior: contain;
+}
+
+dialog {
+  background: var(--surface-color);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  width: min(480px, 92vw);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.45);
+}
+
+dialog h2 { margin-block-start: 0; font-size: 1.1rem; }
+dialog p { color: var(--text-secondary); margin: 0.5rem 0 1.25rem; overflow-wrap: anywhere; }
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-block-start: 0.5rem;
+}
+
+dialog::backdrop { background: rgb(0 0 0 / 0.55); }
+
+dialog form { display: grid; gap: 1rem; }
+dialog form label { font-weight: 600; font-size: 0.9rem; display: grid; gap: 0.35rem; }
+dialog form input {
+  font: inherit;
+  color: var(--text-primary);
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.55rem 0.75rem;
+  min-height: 44px;
+}
+
+/* ============ Forms (forms guide) ============ */
+form.fields {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+}
+
+form.fields label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+form.fields input[type="text"],
+form.fields input[type="file"] {
+  font: inherit;
+  color: var(--text-primary);
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.55rem 0.75rem;
+  min-height: 44px;
+}
+
+.field-help {
+  font-weight: 400;
+  font-size: 0.825rem;
+  color: var(--text-secondary);
+}
+
+/* :user-invalid, never raw :invalid (forms guide): empty required fields are
+ * not punished before the user has interacted */
+input:user-invalid,
+input:user-invalid:focus {
+  border-color: var(--error-color);
+  outline-color: var(--error-color);
+}
+
+input:user-invalid ~ .field-help::before {
+  content: "⚠ ";
+  color: var(--error-color);
+}
+
+/* Status announcements (accessibility guide) */
+#status:not(:empty),
+.status-line {
+  padding: 0.5rem 0.9rem;
+  border-radius: 4px;
+  background: var(--row-hover);
+  border-inline-start: 4px solid var(--secondary-color);
+  font-size: 0.9rem;
+}
+
+/* ============ Spinner (spinner guide) on busy buttons ============ */
+/* Longhands only: this engine line drops the `mask` shorthand declaration */
+.btn[aria-busy="true"] .icon:empty {
+  --icon-style-size: 1.15em;
+  mask-image: none;
+  background: conic-gradient(from 90deg, transparent 0 25%, currentColor 25% 100%) content-box;
+  border-radius: 50%;
+  animation: dkim-spin 1s linear infinite;
+}
+
+@supports (background-clip: border-area) {
+  .btn[aria-busy="true"] .icon:empty {
+    background: conic-gradient(from 90deg, transparent 0 25%, currentColor 25% 100%);
+    background-clip: border-area;
+    border: 0.18em solid transparent;
+    background-origin: border-box;
   }
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .container { width: 95%; padding: 1rem; }
-  table { font-size: 0.8rem; }
+@keyframes dkim-spin { to { transform: rotate(1turn); } }
+
+@media (prefers-reduced-motion: reduce) {
+  /* spinner guide: slow the rotation, do not stop it */
+  .btn[aria-busy="true"] .icon:empty { animation-duration: 6s; }
+  button, .btn { transition: none; }
+  .btn-icon:hover { transform: none; }
+}
+
+/* ============ Forced colors ============ */
+@media (forced-colors: active) {
+  header nav a[aria-current="page"] { border: 2px solid currentColor; }
+  .btn, .container, .table-wrapper, dialog { border-color: CanvasText; }
+  tbody tr.changed { box-shadow: inset 4px 0 0 CanvasText; }
+}
+
+/* ============ Legacy viewport fallback (pre-container-query engines) ======== */
+@supports not (container-type: inline-size) {
+  @media (max-width: 768px) {
+    header { flex-direction: column; align-items: flex-start; }
+    .toolbar { width: 100%; justify-content: flex-start; }
+    .container { width: 95%; padding: 1rem; }
+    table { font-size: 0.8rem; min-width: 0; }
+  }
+}
+
+/* Print: keep the table readable, drop the controls */
+@media print {
+  header nav, .toolbar, td.actions, .table-wrapper ~ form button { display: none; }
+  .table-wrapper { overflow: visible; max-height: none; }
+  table { min-width: 0; }
+  th { position: static; }
 }

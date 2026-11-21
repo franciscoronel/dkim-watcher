@@ -3,6 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- dark-mode guide: declared before CSS so the initial canvas is themed
+       (prevents the light flash / un-themed scrollbars on a dark page) -->
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f5f7">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121212">
   <title>DKIM Watcher</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -10,37 +15,82 @@
   <div class="container">
     <header>
       <h1>DKIM Watcher - <span id="record-count">loading...</span></h1>
-      <div class="toolbar">
-        <a href="/selectors/new" class="btn btn-primary">Add New Selector</a>
-        <button id="manual-check" class="btn btn-secondary">Run DKIM Check</button>
-        <button id="export-csv" class="btn btn-secondary">Export CSV</button>
-      </div>
+      <nav aria-label="Site">
+        <ul>
+          <li><a href="/" aria-current="page">Dashboard</a></li>
+          <li><a href="/selectors/new">Add Selector</a></li>
+        </ul>
+      </nav>
     </header>
 
     <main>
-      <table id="table">
-        <thead>
-          <tr>
-            <th class="sortable" data-sort-col="0" onclick="sortTable(0)" title="Sort by domain">Domain <span class="sort-indicator"></span></th>
-            <th>Selector</th>
-            <th>TXT Record</th>
-            <th>Last Checked</th>
-            <th class="sortable" data-sort-col="4" onclick="sortTable(4)" title="Sort by days unchanged">Unchanged For <span class="sort-indicator"></span></th>
-            <th class="sortable" data-sort-col="5" onclick="sortTable(5)" title="Sort by key length">Key Length <span class="sort-indicator"></span></th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- Data populated by JavaScript -->
-        </tbody>
-      </table>
+      <div class="toolbar">
+        <button id="manual-check" class="btn btn-secondary"><span class="icon" aria-hidden="true" style="--icon-start: var(--icon-check)"></span>Run DKIM Check</button>
+        <button id="export-csv" class="btn btn-secondary"><span class="icon" aria-hidden="true" style="--icon-start: var(--icon-download)"></span>Export CSV</button>
+      </div>
+
+      <p id="status" role="status" aria-live="polite"></p>
+
+      <!-- responsive-table guide: the wrapper is a keyboard-scrollable labelled
+           region; the caption names the table for AT -->
+      <div class="table-wrapper" tabindex="0" role="region" aria-labelledby="dkim-table-caption">
+        <table id="table">
+          <caption id="dkim-table-caption">Monitored DKIM selector records</caption>
+          <thead>
+            <tr>
+              <!-- sortable-table guide: a real <button> inside each sortable
+                   <th scope="col">; aria-sort carries the state; the arrow is
+                   pure CSS off th[aria-sort] -->
+              <th scope="col" class="sortable" data-sort-col="0"><button type="button" title="Sort by domain">Domain</button></th>
+              <th scope="col">Selector</th>
+              <th scope="col">TXT Record</th>
+              <th scope="col">Last Checked</th>
+              <th scope="col" class="sortable" data-sort-col="4"><button type="button" title="Sort by days unchanged">Unchanged For</button></th>
+              <th scope="col" class="sortable" data-sort-col="5"><button type="button" title="Sort by key length">Key Length</button></th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Data populated by JavaScript -->
+          </tbody>
+        </table>
+      </div>
     </main>
   </div>
+
+  <!-- dialog guide: native <dialog>, no role/aria-modal (native modal already
+       provides them); Cancel is autofocused because this is a destructive
+       confirmation; focus returns to the invoker automatically -->
+  <dialog id="delete-dialog" aria-labelledby="delete-title" closedby="closerequest">
+    <h2 id="delete-title">Delete selector?</h2>
+    <p id="delete-detail"></p>
+    <div class="dialog-actions">
+      <button value="cancel" type="button" autofocus class="btn btn-secondary">Cancel</button>
+      <button value="delete" type="button" class="btn btn-danger">Delete</button>
+    </div>
+  </dialog>
+
+  <dialog id="edit-dialog" aria-labelledby="edit-title" closedby="closerequest">
+    <h2 id="edit-title">Edit selector</h2>
+    <form id="edit-form" method="dialog">
+      <label>Domain
+        <input type="text" id="edit-domain" name="domain" autocomplete="off" spellcheck="false" required>
+      </label>
+      <label>Selector
+        <input type="text" id="edit-selector" name="selector" autocomplete="off" spellcheck="false" required>
+      </label>
+      <div class="dialog-actions">
+        <button value="cancel" type="button" class="btn btn-secondary">Cancel</button>
+        <button value="save" type="submit" autofocus class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
 
   <script>
     // Sort state lives in the table's dataset so it survives a data refresh.
     // sortTable() toggles the requested column; applySort() reorders the rows
-    // and paints the header indicators. Global scope for the <th> onclicks.
+    // and paints the headers via aria-sort (sortable-table guide: state on the
+    // <th>, never on the button, never "none").
     function sortTable(n) {
       const table = document.getElementById('table');
       const asc = table.dataset.sortCol !== n.toString() || table.dataset.sortAsc !== 'true';
@@ -54,13 +104,8 @@
       const tbody = table.tBodies[0];
       const col = table.dataset.sortCol;
 
-      // No active sort: show the neutral hint on every sortable header.
       const sortableThs = Array.from(document.querySelectorAll('th.sortable'));
-      sortableThs.forEach(th => {
-        const span = th.querySelector('.sort-indicator');
-        if (span) span.textContent = '';
-        th.classList.remove('sorted');
-      });
+      sortableThs.forEach(th => th.removeAttribute('aria-sort'));
       if (col === undefined) return;
 
       const n = parseInt(col, 10);
@@ -91,14 +136,24 @@
       });
       rows.forEach(r => tbody.appendChild(r));
 
-      // Paint the active header. Match on the data-sort-col attribute: a column
-      // index is NOT an index into the .sortable node list (Domain=0 happened to
-      // match, Unchanged For=4 and Key Length=5 did not), which is why only
-      // Domain ever showed an arrow.
       const activeTh = sortableThs.find(th => th.dataset.sortCol === col);
-      const activeSpan = activeTh ? activeTh.querySelector('.sort-indicator') : null;
-      if (activeSpan) activeSpan.textContent = asc ? ' ▲' : ' ▼';
-      if (activeTh) activeTh.classList.add('sorted');
+      if (activeTh) activeTh.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
+    }
+
+    // Wire the header buttons (no per-button click listener needed for state:
+    // one delegated listener; keyboard works for free because they are buttons)
+    document.querySelectorAll('th.sortable button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        sortTable(btn.closest('th').dataset.sortCol);
+      });
+    });
+
+    function announce(msg) {
+      // role="status" live region replaces alert() popups (accessibility guide)
+      const el = document.getElementById('status');
+      el.textContent = '';
+      // retrigger the announcement for identical consecutive messages
+      requestAnimationFrame(() => { el.textContent = msg; });
     }
 
     async function load() {
@@ -107,13 +162,25 @@
         const res = await fetch('/dkim?t=' + Date.now());
         const data = await res.json();
         const tbody = document.querySelector('#table tbody');
-        tbody.innerHTML = '';
+        // legacy-scan fix: replaceChildren() instead of innerHTML = ''
+        tbody.replaceChildren();
 
         // Update record count
         const countEl = document.getElementById('record-count');
         if (countEl) {
           const word = data.length === 1 ? 'selector record' : 'selector records';
           countEl.textContent = `${data.length} ${word}`;
+        }
+
+        if (data.length === 0) {
+          const tr = document.createElement('tr');
+          tr.className = 'empty-state';
+          const td = document.createElement('td');
+          td.colSpan = 7;
+          td.textContent = 'No selector records yet — add one to start monitoring.';
+          tr.appendChild(td);
+          tbody.appendChild(tr);
+          return;
         }
 
         data.forEach(r => {
@@ -139,6 +206,11 @@
 
           const tdTxt = cell('txt-cell');
           tdTxt.setAttribute('title', r.txt || '');
+          // Native text hint (Baseline Newly available; [title] above is the
+          // universal fallback). Feature-detected, zero JS.
+          if (HTMLElement.prototype.constructor && 'popover' in HTMLElement.prototype && r.txt) {
+            tdTxt.popover = 'hint';
+          }
           if (r.txt) {
             tdTxt.textContent = r.txt;
           } else {
@@ -170,8 +242,8 @@
             b.addEventListener('click', handler);
             return b;
           };
-          tdActions.appendChild(mkBtn('Edit', 'btn-secondary', 'Edit', () => editSelector(r.domain, r.selector)));
-          tdActions.appendChild(mkBtn('Delete', 'btn-danger', 'Delete', () => deleteSelector(r.domain, r.selector)));
+          tdActions.appendChild(mkBtn('Edit', 'btn-secondary', 'Edit', () => openEditDialog(r.domain, r.selector)));
+          tdActions.appendChild(mkBtn('Delete', 'btn-danger', 'Delete', () => openDeleteDialog(r.domain, r.selector)));
           tr.appendChild(tdActions);
 
           tbody.appendChild(tr);
@@ -182,60 +254,119 @@
         applySort();
       } catch (err) {
         console.error('Failed to load DKIM records:', err);
+        announce('Failed to load DKIM records.');
       }
     }
 
-    async function deleteSelector(domain, selector) {
-      if (confirm(`Are you sure you want to delete ${domain} (${selector})?`)) {
-        try {
-          const res = await fetch(`/selectors/${domain}/${selector}`, { method: 'DELETE' });
-          if (res.ok) {
-            load();
-          } else {
-            alert('Failed to delete selector.');
-          }
-        } catch (err) {
-          alert('Error during deletion.');
+    // ============ Delete: native modal replaces confirm() (dialog guide) ====
+    const deleteDialog = document.getElementById('delete-dialog');
+    let deleteTarget = null;
+
+    function openDeleteDialog(domain, selector) {
+      deleteTarget = { domain, selector };
+      document.getElementById('delete-detail').textContent =
+        `This removes ${domain} (${selector}) from monitoring. This cannot be undone.`;
+      deleteDialog.showModal(); // showModal(): inert page, focus containment,
+                                // Esc + backdrop dismissal, focus return — all native
+    }
+
+    deleteDialog.addEventListener('close', async () => {
+      // dialog guide: read returnValue in the close listener, then reset it so
+      // a stale value cannot leak into the next open
+      const choice = deleteDialog.returnValue;
+      deleteDialog.returnValue = '';
+      if (choice !== 'delete' || !deleteTarget) return;
+      const { domain, selector } = deleteTarget;
+      deleteTarget = null;
+      try {
+        const res = await fetch(`/selectors/${domain}/${selector}`, { method: 'DELETE' });
+        announce(res.ok ? `Deleted ${domain} (${selector}).` : `Failed to delete ${domain} (${selector}).`);
+        if (res.ok) load();
+      } catch (err) {
+        announce('Error during deletion.');
+      }
+    });
+
+    // Explicit close for the confirm button: native dialog button association
+    // (<button value> in the dialog subtree) is invoker-era and not wired on
+    // engines older than ~123; close('delete') is Baseline and carries the
+    // same returnValue.
+    deleteDialog.querySelector('[value="delete"]').addEventListener('click', () => {
+      deleteDialog.close('delete');
+    });
+
+    // ============ Edit: one prefilled form dialog replaces two prompt()s ====
+    const editDialog = document.getElementById('edit-dialog');
+    const editForm = document.getElementById('edit-form');
+    let editTarget = null;
+
+    function openEditDialog(domain, selector) {
+      editTarget = { domain, selector };
+      document.getElementById('edit-domain').value = domain;
+      document.getElementById('edit-selector').value = selector;
+      editDialog.showModal();
+    }
+
+    editForm.addEventListener('submit', async (e) => {
+      // method="dialog": the platform fires submit then closes; we intercept
+      // to persist first, then close explicitly with the chosen value
+      e.preventDefault();
+      if (!editTarget) return;
+      const newDomain = document.getElementById('edit-domain').value.trim();
+      const newSelector = document.getElementById('edit-selector').value.trim();
+      if (!newDomain || !newSelector) return; // native required handles UI
+      const { domain, selector } = editTarget;
+      try {
+        const res = await fetch(`/selectors/${domain}/${selector}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain: newDomain, selector: newSelector })
+        });
+        if (res.ok) {
+          editDialog.close('save');
+          editTarget = null;
+          announce(`Updated to ${newDomain} (${newSelector}).`);
+          load();
+        } else {
+          announce('Failed to update selector.');
         }
+      } catch (err) {
+        announce('Error during update.');
       }
-    }
+    });
 
-    async function editSelector(domain, selector) {
-      const newDomain = prompt("Enter new domain:", domain);
-      const newSelector = prompt("Enter new selector:", selector);
-      if (newDomain && newSelector) {
-        try {
-          const res = await fetch(`/selectors/${domain}/${selector}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ domain: newDomain, selector: newSelector })
-          });
-          if (res.ok) {
-            load();
-          } else {
-            alert('Failed to update selector.');
-          }
-        } catch (err) {
-          alert('Error during update.');
-        }
-      }
-    }
+    editDialog.addEventListener('close', () => {
+      const choice = editDialog.returnValue;
+      editDialog.returnValue = '';
+      if (choice !== 'save') editTarget = null;
+    });
 
-    // Run DKIM check on demand
+    // Cancel safety net: native form-method association handles it on modern
+    // engines; this guarantees the same returnValue on older ones. (For 'save'
+    // this fires after the submit handler already closed the dialog — a no-op.)
+    editDialog.querySelector('[value="cancel"]').addEventListener('click', () => {
+      editDialog.close('cancel');
+    });
+
+    // Run DKIM check on demand — busy state conveyed with aria-busy + spinner
     document.getElementById('manual-check').addEventListener('click', async () => {
       const btn = document.getElementById('manual-check');
       btn.disabled = true;
-      btn.textContent = 'Checking...';
+      btn.setAttribute('aria-busy', 'true');
       try {
         const res = await fetch('/dkim/check', { method: 'POST' });
         const data = await res.json();
-        alert(`DKIM check complete (${data.time || 'n/a'}).`);
+        // /dkim/check answers {status:'checked',time} OR {status:'rate_limited',message}
+        const msg = data.status === 'rate_limited'
+          ? `Check rate-limited: ${data.message}`
+          : `DKIM check complete (${data.time ? new Date(data.time + 'Z').toLocaleString() : 'n/a'}).`;
+        announce(msg);
         load();
       } catch (err) {
-        alert('DKIM check failed.');
+        announce('DKIM check failed.');
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Run DKIM Check';
+        btn.removeAttribute('aria-busy');
       }
     });
 
@@ -243,7 +374,7 @@
     document.getElementById('export-csv').addEventListener('click', async () => {
       const btn = document.getElementById('export-csv');
       btn.disabled = true;
-      btn.textContent = 'Exporting...';
+      btn.setAttribute('aria-busy', 'true');
       try {
         const res = await fetch('/dkim/export/csv');
         const blob = await res.blob();
@@ -255,11 +386,12 @@
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
+        announce('CSV export downloaded.');
       } catch (err) {
-        alert('CSV export failed.');
+        announce('CSV export failed.');
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Export CSV';
+        btn.removeAttribute('aria-busy');
       }
     });
 
