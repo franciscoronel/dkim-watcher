@@ -183,20 +183,13 @@ th {
 
 /* sortable-table guide: the clickable control is a <button> inside
  * <th scope="col"> — the th itself is never the control */
-/* Engine note (Chromium 120 A/B on the live page): `all: inherit` on the
- * header button collapses every header cell to 0px (column grid misaligns,
- * data shifts left under the wrong headers). Keep the th as the flex
- * container; give the button explicit `all: revert` properties instead. */
-th.sortable {
-  display: flex;
-  align-items: center;
-  gap: 0.4em;
-}
-
+/* Engine note: flex on a <th> removes it from the table's width bookkeeping
+ * (headers stop reporting colgroup column widths, so header/data columns
+ * drift — measured 2026-11-22: headers uniform 191px vs data 135-460px).
+ * Headers stay plain table-cells; the sort arrow floats right. */
 th.sortable button {
-  all: revert;
-  flex: 1 1 auto;
   display: block;
+  width: 100%;
   text-align: inherit;
   cursor: pointer;
   border: 0;
@@ -206,8 +199,9 @@ th.sortable button {
   font-family: inherit;
   font-size: inherit;
   font-weight: inherit;
+  line-height: inherit;
   color: inherit;
-  min-inline-size: 0;
+  text-transform: inherit;
 }
 
 th.sortable button:hover { color: var(--primary-color); }
@@ -237,6 +231,8 @@ td {
   padding: 12px 16px;
   border-bottom: 1px solid var(--border-color);
   font-size: 0.95rem;
+  overflow: hidden; /* fixed layout: long values ellipsize, never reflow columns */
+  text-overflow: ellipsis;
 }
 
 tbody tr:nth-child(2n) { background-color: var(--row-alt); }
