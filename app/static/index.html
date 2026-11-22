@@ -9,7 +9,7 @@
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f5f7">
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121212">
   <title>DKIM Watcher</title>
-  <link rel="stylesheet" href="/static/style.css?v=20261122f">
+  <link rel="stylesheet" href="/static/style.css?v=20261122g">
 </head>
 <body>
   <div class="container">
@@ -42,10 +42,10 @@
                ellipsis work as designed on every engine. -->
           <colgroup>
             <col style="width:12%">
-            <col style="width:14%">
-            <col style="width:30%">
             <col style="width:18%">
-            <col style="width:9%">
+            <col style="width:28%">
+            <col style="width:17%">
+            <col style="width:8%">
             <col style="width:9%">
             <col style="width:8%">
           </colgroup>
@@ -215,6 +215,7 @@
 
           const tdSelector = cell();
           tdSelector.textContent = r.selector;
+          decorateTruncated(tdSelector, r.selector);
           tr.appendChild(tdSelector);
 
           const tdTxt = cell('txt-cell');
@@ -226,6 +227,7 @@
           // :popover-open CSS (inert where unsupported) remain the fallback.
           if (r.txt) {
             tdTxt.textContent = r.txt;
+            decorateTruncated(tdTxt, r.txt);
           } else {
             const muted = document.createElement('span');
             muted.className = 'muted';
@@ -274,6 +276,53 @@
         console.error('Failed to load DKIM records:', err);
         announce('Failed to load DKIM records.');
       }
+    }
+
+    // ============ Truncated values: inline expand + copy (no windows) =====
+    // Ellipsized Selector/TXT cells get a small show/hide control; expanded
+    // text wraps inside the cell (selectable with the mouse) and a copy
+    // button pushes the exact string to the clipboard via the async
+    // Clipboard API (secure context: the site is HTTPS behind the tunnel;
+    // execCommand fallback for engines without it).
+    function decorateTruncated(td, value) {
+      if (!value) return;
+      td.dataset.full = value;
+      const ctl = document.createElement('button');
+      ctl.type = 'button';
+      ctl.className = 'expand-ctl';
+      ctl.textContent = 'show';
+      ctl.title = `Show full value: ${value.slice(0, 60)}${value.length > 60 ? '…' : ''}`;
+      ctl.setAttribute('aria-expanded', 'false');
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'btn btn-secondary copy-ctl';
+      copy.textContent = 'Copy';
+      copy.hidden = true;
+      ctl.addEventListener('click', () => {
+        const expanded = td.classList.toggle('expanded');
+        ctl.textContent = expanded ? 'hide' : 'show';
+        ctl.setAttribute('aria-expanded', String(expanded));
+        copy.hidden = !expanded;
+      });
+      copy.addEventListener('click', async () => {
+        let ok = false;
+        try {
+          await navigator.clipboard.writeText(td.dataset.full);
+          ok = true;
+        } catch (err) {
+          const ta = document.createElement('textarea');
+          ta.value = td.dataset.full;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+          ta.remove();
+        }
+        announce(ok ? `Copied to clipboard: ${td.dataset.full.slice(0, 40)}…`
+                    : 'Clipboard copy failed — expanded text can be selected manually.');
+      });
+      td.append(ctl, copy);
     }
 
     // ============ Delete: native modal replaces confirm() (dialog guide) ====

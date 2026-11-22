@@ -69,7 +69,7 @@ h1 {
 .container {
   /* Fluid: fills the user's available width, centered, with a readable
    * cap on ultrawide screens (min() is Baseline Widely available) */
-  width: min(1400px, 100% - 2rem);
+  width: min(1700px, 100% - 2rem);
   margin-inline: auto;
   margin-block: 2rem;
   background-color: var(--surface-color);
@@ -234,6 +234,26 @@ td {
   overflow: hidden; /* fixed layout: long values ellipsize, never reflow columns */
   text-overflow: ellipsis;
 }
+
+/* Inline expansion of truncated Selector/TXT values (non-modal, copyable) */
+td.expanded {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: unset;
+  user-select: text;
+}
+.expand-ctl, .copy-ctl {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  margin-inline-start: 0.5rem;
+  min-height: 0;
+  font-size: 0.75rem;
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--secondary-color);
+}
+.copy-ctl { color: var(--accent-contrast); background-color: var(--secondary-color); }
 
 tbody tr:nth-child(2n) { background-color: var(--row-alt); }
 tbody tr:hover { background-color: var(--row-hover); }
