@@ -67,9 +67,11 @@ h1 {
 }
 
 .container {
-  width: 90%;
-  max-width: 1200px;
-  margin: 2rem 0;
+  /* Fluid: fills the user's available width, centered, with a readable
+   * cap on ultrawide screens (min() is Baseline Widely available) */
+  width: min(1400px, 100% - 2rem);
+  margin-inline: auto;
+  margin-block: 2rem;
   background-color: var(--surface-color);
   padding: 1.5rem;
   border-radius: var(--radius);
