@@ -9,7 +9,7 @@
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f5f7">
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121212">
   <title>DKIM Watcher</title>
-  <link rel="stylesheet" href="/static/style.css?v=20261122g">
+  <link rel="stylesheet" href="/static/style.css?v=20261122h">
 </head>
 <body>
   <div class="container">
@@ -41,13 +41,13 @@
                key is unbreakable nowrap content. Explicit widths make the
                ellipsis work as designed on every engine. -->
           <colgroup>
-            <col style="width:12%">
-            <col style="width:18%">
-            <col style="width:28%">
+            <col style="width:11%">
+            <col style="width:22%">
+            <col style="width:33%">
             <col style="width:17%">
-            <col style="width:8%">
-            <col style="width:9%">
-            <col style="width:8%">
+            <col style="width:5%">
+            <col style="width:7%">
+            <col style="width:5%">
           </colgroup>
           <thead>
             <tr>
@@ -278,51 +278,54 @@
       }
     }
 
-    // ============ Truncated values: inline expand + copy (no windows) =====
-    // Ellipsized Selector/TXT cells get a small show/hide control; expanded
-    // text wraps inside the cell (selectable with the mouse) and a copy
-    // button pushes the exact string to the clipboard via the async
-    // Clipboard API (secure context: the site is HTTPS behind the tunnel;
-    // execCommand fallback for engines without it).
+    // ============ Truncated values: one dual-function circle control =======
+    // A single compact button per Selector/TXT cell (ASCII circle label):
+    // collapsed -> click copies the full string to the clipboard (Clipboard
+    // API, secure context via HTTPS tunnel, execCommand fallback).
+    // expanded  -> click collapses back to the ellipsis. Expanded text wraps
+    // inside the cell and is selectable manually.
+    async function copyValue(value) {
+      let ok = false;
+      try {
+        await navigator.clipboard.writeText(value);
+        ok = true;
+      } catch (err) {
+        const ta = document.createElement('textarea');
+        ta.value = value;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+        ta.remove();
+      }
+      announce(ok ? `Copied to clipboard: ${value.slice(0, 40)}${value.length > 40 ? '…' : ''}`
+                  : 'Clipboard copy failed — use show (click circle again) to select manually.');
+    }
+
     function decorateTruncated(td, value) {
       if (!value) return;
       td.dataset.full = value;
       const ctl = document.createElement('button');
       ctl.type = 'button';
       ctl.className = 'expand-ctl';
-      ctl.textContent = 'show';
-      ctl.title = `Show full value: ${value.slice(0, 60)}${value.length > 60 ? '…' : ''}`;
+      ctl.textContent = '\u25CB'; // ○
+      ctl.title = 'Expanded: click to collapse. Collapsed: click copies to clipboard and expands.';
       ctl.setAttribute('aria-expanded', 'false');
-      const copy = document.createElement('button');
-      copy.type = 'button';
-      copy.className = 'btn btn-secondary copy-ctl';
-      copy.textContent = 'Copy';
-      copy.hidden = true;
+      ctl.setAttribute('aria-label', 'Copy value to clipboard');
       ctl.addEventListener('click', () => {
-        const expanded = td.classList.toggle('expanded');
-        ctl.textContent = expanded ? 'hide' : 'show';
-        ctl.setAttribute('aria-expanded', String(expanded));
-        copy.hidden = !expanded;
-      });
-      copy.addEventListener('click', async () => {
-        let ok = false;
-        try {
-          await navigator.clipboard.writeText(td.dataset.full);
-          ok = true;
-        } catch (err) {
-          const ta = document.createElement('textarea');
-          ta.value = td.dataset.full;
-          ta.style.position = 'fixed';
-          ta.style.opacity = '0';
-          document.body.appendChild(ta);
-          ta.select();
-          try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
-          ta.remove();
+        if (td.classList.contains('expanded')) {
+          td.classList.remove('expanded');
+          ctl.setAttribute('aria-expanded', 'false');
+          ctl.setAttribute('aria-label', 'Copy value to clipboard');
+          return;
         }
-        announce(ok ? `Copied to clipboard: ${td.dataset.full.slice(0, 40)}…`
-                    : 'Clipboard copy failed — expanded text can be selected manually.');
+        copyValue(td.dataset.full);
+        td.classList.add('expanded');
+        ctl.setAttribute('aria-expanded', 'true');
+        ctl.setAttribute('aria-label', 'Collapse value');
       });
-      td.append(ctl, copy);
+      td.append(ctl);
     }
 
     // ============ Delete: native modal replaces confirm() (dialog guide) ====
