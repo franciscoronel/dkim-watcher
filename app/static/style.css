@@ -154,9 +154,36 @@ button:disabled { opacity: 0.6; cursor: progress; }
 table {
   width: 100%;
   min-width: 720px; /* horizontal scroll before the stacked layout kicks in */
-  table-layout: fixed; /* see colgroup in index.html: stops 0px TXT column */
+  table-layout: fixed; /* column widths come from the th rules below */
   border-collapse: collapse;
   margin-top: 0.5rem;
+}
+
+/* Engine note (measured 2026-11-22, packaged Chromium 120): <col> percentage
+ * widths in a colgroup are DROPPED at layout time (inline style attribute
+ * parses, computed width comes out equal-width); px on <col> works, and the
+ * identical string set via CSSOM works — only the HTML-inline % is ignored.
+ * In fixed layout the first-row cell widths define columns, so the widths
+ * live here on th:nth-child instead. % of table width, sum 100.
+ * Unchanged For (14%) and Key Length (10%) are sized so their headers AND
+ * short values sit on one line at typical widths; Selector (18%) and the
+ * DKIM key column (26%) take the surplus. */
+th:nth-child(1) { width: 11%; } /* Domain */
+th:nth-child(2) { width: 18%; } /* Selector */
+th:nth-child(3) { width: 26%; } /* DKIM TXT */
+th:nth-child(4) { width: 15%; } /* Last Checked */
+th:nth-child(5) { width: 14%; } /* Unchanged For */
+th:nth-child(6) { width: 10%; } /* Key Length */
+th:nth-child(7) { width: 6%; }  /* Actions */
+
+/* Unchanged For / Key Length: values are short ("86 days", "2048 bits") —
+ * tightened padding + slightly smaller type makes them fit on one line
+ * across the whole flat-layout range (720px table minimum upward). */
+th:nth-child(5), th:nth-child(6) { padding-inline: 0.6rem; }
+td:nth-child(5), td:nth-child(6) {
+  padding-inline: 0.6rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 caption {

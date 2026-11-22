@@ -9,7 +9,7 @@
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f5f7">
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121212">
   <title>DKIM Watcher</title>
-  <link rel="stylesheet" href="/static/style.css?v=20261122h">
+  <link rel="stylesheet" href="/static/style.css?v=20261122k">
 </head>
 <body>
   <div class="container">
@@ -38,17 +38,8 @@
           <caption id="dkim-table-caption">Monitored DKIM selector records</caption>
           <!-- Fixed layout is the engine-safe cure: with auto layout Chromium
                collapses the TXT column to 0px because the 1000-char base64
-               key is unbreakable nowrap content. Explicit widths make the
-               ellipsis work as designed on every engine. -->
-          <colgroup>
-            <col style="width:11%">
-            <col style="width:22%">
-            <col style="width:33%">
-            <col style="width:17%">
-            <col style="width:5%">
-            <col style="width:7%">
-            <col style="width:5%">
-          </colgroup>
+               key is unbreakable nowrap content. Column widths live on
+               th:nth-child in style.css (<col> % widths are dropped here). -->
           <thead>
             <tr>
               <!-- sortable-table guide: a real <button> inside each sortable
