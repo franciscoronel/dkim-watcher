@@ -246,6 +246,11 @@
           tdActions.appendChild(mkBtn('Delete', 'btn-danger', 'Delete', () => openDeleteDialog(r.domain, r.selector)));
           tr.appendChild(tdActions);
 
+          // data-label powers the legacy media-query stacking fallback
+          // (content: attr(data-label)); @container stacking uses --label.
+          const LABELS = ['Domain', 'Selector', 'DKIM TXT', 'Last Checked', 'Unchanged For', 'Key Length', 'Actions'];
+          Array.from(tr.cells).forEach((c, i) => c.setAttribute('data-label', LABELS[i] || ''));
+
           tbody.appendChild(tr);
         });
 

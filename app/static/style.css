@@ -180,25 +180,42 @@ th {
 
 /* sortable-table guide: the clickable control is a <button> inside
  * <th scope="col"> — the th itself is never the control */
-th.sortable button {
-  all: inherit;
+/* Engine note (Chromium 120 A/B on the live page): `all: inherit` on the
+ * header button collapses every header cell to 0px (column grid misaligns,
+ * data shifts left under the wrong headers). Keep the th as the flex
+ * container; give the button explicit `all: revert` properties instead. */
+th.sortable {
   display: flex;
   align-items: center;
   gap: 0.4em;
-  width: 100%;
-  padding: inherit;
+}
+
+th.sortable button {
+  all: revert;
+  flex: 1 1 auto;
+  display: block;
+  text-align: inherit;
   cursor: pointer;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  min-inline-size: 0;
 }
 
 th.sortable button:hover { color: var(--primary-color); }
 
 /* Direction icon driven purely by aria-sort (sortable-table guide):
  * "Drive its appearance from th[aria-sort] in CSS, not from extra classes
- * or JavaScript." The neutral chevron stays visible before first use. */
+ * or JavaScript." The neutral chevron stays visible before first use.
+ * float:right is the engine-safe right-alignment (works on old engines). */
 th.sortable button::after {
   content: "";
-  flex: none;
-  margin-inline-start: auto;
+  float: right;
   inline-size: 1.05em;
   block-size: 1.05em;
   background-color: #8a8a8a;
@@ -320,7 +337,7 @@ header nav a[aria-current="page"] {
 
 /* ============ Stacked table on narrow containers (responsive-table guide)
  * Uses @container, not @media: the table adapts to its own width ============ */
-@container (width < 640px) {
+@container (width < 720px) {
   table { min-width: 0; }
   caption { display: none; }
   thead { display: none; }
@@ -490,6 +507,13 @@ input:user-invalid ~ .field-help::before {
     .container { width: 95%; padding: 1rem; }
     table { font-size: 0.8rem; min-width: 0; }
   }
+  /* same single-break intent as the @container rule for engines without it */
+  @media (max-width: 700px) {
+    caption, thead { display: none; }
+    tbody tr { display: block; margin: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 4px; padding: 0.25rem 0.75rem; }
+    tbody td { display: block; border-bottom: none; }
+    tbody td::before { content: attr(data-label) ": "; color: var(--text-secondary); font-weight: 700; }
+    .txt-cell { max-width: none; white-space: normal; overflow-wrap: anywhere; }
 }
 
 /* Print: keep the table readable, drop the controls */
