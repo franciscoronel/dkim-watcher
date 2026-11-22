@@ -9,7 +9,7 @@
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f5f7">
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121212">
   <title>DKIM Watcher</title>
-  <link rel="stylesheet" href="/static/style.css?v=20261122k">
+  <link rel="stylesheet" href="/static/style.css?v=20261122l">
 </head>
 <body>
   <div class="container">
@@ -206,7 +206,7 @@
 
           const tdSelector = cell();
           tdSelector.textContent = r.selector;
-          decorateTruncated(tdSelector, r.selector);
+          decorateTruncated(tdSelector, r.selector, `${r.selector}._domainkey.${r.domain}`);
           tr.appendChild(tdSelector);
 
           const tdTxt = cell('txt-cell');
@@ -294,16 +294,21 @@
                   : 'Clipboard copy failed — use show (click circle again) to select manually.');
     }
 
-    function decorateTruncated(td, value) {
+    function decorateTruncated(td, value, copyAs) {
       if (!value) return;
-      td.dataset.full = value;
+      // data-full = what the circle copies: for selectors this is the real
+      // DKIM selector FQDN (selector._domainkey.domain), paste-ready for
+      // dig/online checkers; expansion itself shows the cell's own text.
+      td.dataset.full = copyAs || value;
       const ctl = document.createElement('button');
       ctl.type = 'button';
       ctl.className = 'expand-ctl';
       ctl.textContent = '\u25CB'; // ○
-      ctl.title = 'Expanded: click to collapse. Collapsed: click copies to clipboard and expands.';
+      ctl.title = copyAs
+        ? `Copies ${copyAs} — click again after expanding to collapse`
+        : 'Expanded: click to collapse. Collapsed: click copies to clipboard and expands.';
       ctl.setAttribute('aria-expanded', 'false');
-      ctl.setAttribute('aria-label', 'Copy value to clipboard');
+      ctl.setAttribute('aria-label', copyAs ? `Copy ${copyAs} to clipboard` : 'Copy value to clipboard');
       ctl.addEventListener('click', () => {
         if (td.classList.contains('expanded')) {
           td.classList.remove('expanded');
