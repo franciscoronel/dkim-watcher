@@ -9,7 +9,7 @@
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f5f7">
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121212">
   <title>DKIM Watcher</title>
-  <link rel="stylesheet" href="/static/style.css?v=20261122b">
+  <link rel="stylesheet" href="/static/style.css?v=20261122e">
 </head>
 <body>
   <div class="container">
@@ -36,6 +36,19 @@
       <div class="table-wrapper" tabindex="0" role="region" aria-labelledby="dkim-table-caption">
         <table id="table">
           <caption id="dkim-table-caption">Monitored DKIM selector records</caption>
+          <!-- Fixed layout is the engine-safe cure: with auto layout Chromium
+               collapses the TXT column to 0px because the 1000-char base64
+               key is unbreakable nowrap content. Explicit widths make the
+               ellipsis work as designed on every engine. -->
+          <colgroup>
+            <col style="width:12%">
+            <col style="width:15%">
+            <col style="width:34%">
+            <col style="width:19%">
+            <col style="width:10%">
+            <col style="width:10%">
+            <col style="width:14%">
+          </colgroup>
           <thead>
             <tr>
               <!-- sortable-table guide: a real <button> inside each sortable
@@ -206,11 +219,11 @@
 
           const tdTxt = cell('txt-cell');
           tdTxt.setAttribute('title', r.txt || '');
-          // Native text hint (Baseline Newly available; [title] above is the
-          // universal fallback). Feature-detected, zero JS.
-          if (HTMLElement.prototype.constructor && 'popover' in HTMLElement.prototype && r.txt) {
-            tdTxt.popover = 'hint';
-          }
+          // NOTE: we deliberately do NOT use popover="hint" on these cells.
+          // Measured 2026-11-22: the content attribute collapses table cells
+          // to 0px width in Chromium 114-120 (w=0 -> w=191 on removal) —
+          // i.e. it eats the exact column it decorates. The [title] attr +
+          // :popover-open CSS (inert where unsupported) remain the fallback.
           if (r.txt) {
             tdTxt.textContent = r.txt;
           } else {

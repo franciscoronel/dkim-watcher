@@ -154,6 +154,7 @@ button:disabled { opacity: 0.6; cursor: progress; }
 table {
   width: 100%;
   min-width: 720px; /* horizontal scroll before the stacked layout kicks in */
+  table-layout: fixed; /* see colgroup in index.html: stops 0px TXT column */
   border-collapse: collapse;
   margin-top: 0.5rem;
 }
@@ -366,7 +367,7 @@ header nav a[aria-current="page"] {
   tbody td:nth-child(5) { --label: "Unchanged For"; }
   tbody td:nth-child(6) { --label: "Key Length"; }
   tbody td:nth-child(7) { --label: "Actions"; }
-  .txt-cell { max-width: none; white-space: normal; overflow-wrap: anywhere; }
+  tbody td.txt-cell { max-width: none; white-space: normal; overflow-wrap: anywhere; }
   tr.empty-state td { display: block; }
 }
 
@@ -515,7 +516,8 @@ input:user-invalid ~ .field-help::before {
     tbody tr { display: block; margin: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 4px; padding: 0.25rem 0.75rem; }
     tbody td { display: block; border-bottom: none; }
     tbody td::before { content: attr(data-label) ": "; color: var(--text-secondary); font-weight: 700; }
-    .txt-cell { max-width: none; white-space: normal; overflow-wrap: anywhere; }
+    tbody td.txt-cell { max-width: none; white-space: normal; overflow-wrap: anywhere; }
+  }
 }
 
 /* Print: keep the table readable, drop the controls */
