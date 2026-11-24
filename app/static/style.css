@@ -25,9 +25,13 @@
   --text-secondary: light-dark(#5a5f6a, #a0a0a0);
   --border-color: light-dark(#d6d9e0, #333333);
   --row-hover: light-dark(#edeef2, #2c2c2c);
-  --row-alt: light-dark(#f8f9fb, #191919);
-  --changed-bg: light-dark(rgb(232 150 40 / 0.18), rgb(207 102 121 / 0.2));
-  --changed-edge: light-dark(#b45309, #cf6679);
+  /* zebra tint: visible step from the surface (#f8f9fb/#191919 measured
+   * 2026-11-24 as indistinguishable from the row background) */
+  --row-alt: light-dark(#f0f2f6, #26262a);
+  /* changed = amber in BOTH schemes; red is reserved for destructive
+   * actions (Delete), so the row tint no longer collides with it in dark */
+  --changed-bg: light-dark(rgb(232 150 40 / 0.18), rgb(232 150 40 / 0.16));
+  --changed-edge: light-dark(#b45309, #e0a33e);
   --focus-color: light-dark(#7b2ff7, #bb86fc);
   --scrollbar-thumb: light-dark(#c6cad4, #3a3a3a);
   --scrollbar-track: light-dark(#eceef2, #171717);
@@ -167,14 +171,14 @@ table {
  * live here on th:nth-child instead. % of table width, sum 100.
  * Unchanged For (14%) and Key Length (10%) are sized so their headers AND
  * short values sit on one line at typical widths; Selector (18%) and the
- * DKIM key column (26%) take the surplus. */
+ * DKIM key column (25%) take the surplus; Actions (7%) fits the buttons. */
 th:nth-child(1) { width: 11%; } /* Domain */
 th:nth-child(2) { width: 18%; } /* Selector */
-th:nth-child(3) { width: 26%; } /* DKIM TXT */
+th:nth-child(3) { width: 25%; } /* DKIM TXT */
 th:nth-child(4) { width: 15%; } /* Last Checked */
 th:nth-child(5) { width: 14%; } /* Unchanged For */
 th:nth-child(6) { width: 10%; } /* Key Length */
-th:nth-child(7) { width: 6%; }  /* Actions */
+th:nth-child(7) { width: 7%; }  /* Actions */
 
 /* Unchanged For / Key Length: values are short ("86 days", "2048 bits") —
  * tightened padding + slightly smaller type makes them fit on one line
@@ -205,7 +209,9 @@ th {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--surface-color); /* covers rows during scroll */
+  /* tinted (not plain surface) so the header band separates from body rows
+   * while staying opaque during sticky scroll */
+  background: light-dark(#f4f5f9, #232328);
 }
 
 /* sortable-table guide: the clickable control is a <button> inside
@@ -269,21 +275,65 @@ td.expanded {
   text-overflow: unset;
   user-select: text;
 }
+/* Dual-function circle control: FILLED accent disc with high-contrast glyph.
+ * (2026-11-24 review: the 1px-outline ○ at border-color was effectively
+ * invisible — two independent visual audits reported "no expand affordance
+ * exists" on the TXT column. Filled + contrast color + hover ring.) */
 .expand-ctl {
   display: inline-block;
   padding: 0;
-  margin-inline-start: 0.4rem;
-  inline-size: 1.4em;
-  block-size: 1.4em;
+  margin-inline-start: 0.45rem;
+  inline-size: 1.5em;
+  block-size: 1.5em;
   min-height: 0;
-  font-size: 0.8rem;
-  line-height: 1.2;
+  font-size: 0.75rem;
+  line-height: 1.5em;
   text-align: center;
-  background: none;
-  border: 1px solid var(--border-color);
+  vertical-align: middle;
+  background: var(--secondary-color);
+  border: 0;
   border-radius: 50%;
-  color: var(--secondary-color);
+  color: var(--accent-contrast);
 }
+.expand-ctl:hover {
+  box-shadow: 0 0 0 3px light-dark(rgb(0 105 106 / 0.25), rgb(3 218 198 / 0.3));
+}
+td.expanded .expand-ctl { background: var(--primary-color); }
+
+/* Status chips: explicit per-row state (OK / Changed / Missing) — the row
+ * tint alone was uninterpretable (no legend, and 'Missing' had no flag). */
+.chip {
+  display: inline-block;
+  margin-inline-start: 0.45rem;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  line-height: 1.4;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.chip-ok {
+  background: light-dark(rgb(3 218 198 / 0.18), rgb(3 218 198 / 0.16));
+  color: light-dark(#005556, #03dac6);
+}
+.chip-changed {
+  background: light-dark(rgb(232 150 40 / 0.22), rgb(232 150 40 / 0.18));
+  color: light-dark(#7a4d0a, #e0a33e);
+}
+.chip-missing {
+  background: light-dark(rgb(179 38 30 / 0.14), rgb(207 102 121 / 0.18));
+  color: light-dark(#a11f18, #e58ea1);
+}
+.legend {
+  float: right;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.legend .chip { margin-inline-start: 0.3rem; }
 
 tbody tr:nth-child(2n) { background-color: var(--row-alt); }
 tbody tr:hover { background-color: var(--row-hover); }
@@ -295,6 +345,20 @@ tbody tr.changed {
 }
 
 tbody tr[aria-busy="true"] { content-visibility: auto; } /* INP guide */
+
+/* Actions cell: buttons fill the cell (measured 2026-11-24: Delete = 94px
+ * vs 80px cell — td overflow:hidden clipped the label). width:100% +
+ * tightened padding keeps labels whole from the 720px table minimum up. */
+td.actions { padding-inline: 0.4rem; }
+td.actions .btn {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  padding-inline: 0.4rem;
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .btn-icon {
   background: none;
@@ -546,6 +610,7 @@ input:user-invalid ~ .field-help::before {
   header nav a[aria-current="page"] { border: 2px solid currentColor; }
   .btn, .container, .table-wrapper, dialog { border-color: CanvasText; }
   tbody tr.changed { box-shadow: inset 4px 0 0 CanvasText; }
+  .chip { border: 1px solid CanvasText; background: Canvas; color: CanvasText; }
 }
 
 /* ============ Legacy viewport fallback (pre-container-query engines) ======== */

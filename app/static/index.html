@@ -9,7 +9,7 @@
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f5f7">
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121212">
   <title>DKIM Watcher</title>
-  <link rel="stylesheet" href="/static/style.css?v=20261122l">
+  <link rel="stylesheet" href="/static/style.css?v=20261124a">
 </head>
 <body>
   <div class="container">
@@ -35,7 +35,13 @@
            region; the caption names the table for AT -->
       <div class="table-wrapper" tabindex="0" role="region" aria-labelledby="dkim-table-caption">
         <table id="table">
-          <caption id="dkim-table-caption">Monitored DKIM selector records</caption>
+          <caption id="dkim-table-caption">Monitored DKIM selector records
+            <span class="legend">
+              <span class="chip chip-ok">OK</span>
+              <span class="chip chip-changed">Changed</span>
+              <span class="chip chip-missing">Missing</span>
+            </span>
+          </caption>
           <!-- Fixed layout is the engine-safe cure: with auto layout Chromium
                collapses the TXT column to 0px because the 1000-char base64
                key is unbreakable nowrap content. Column widths live on
@@ -206,6 +212,21 @@
 
           const tdSelector = cell();
           tdSelector.textContent = r.selector;
+          // Explicit status chip (the row tint alone was uninterpretable):
+          // Missing = no TXT found, Changed = record changed at last check,
+          // OK = present and unchanged. Legend lives in the table caption.
+          const chip = document.createElement('span');
+          if (!r.txt) {
+            chip.className = 'chip chip-missing';
+            chip.textContent = 'Missing';
+          } else if (r.changed) {
+            chip.className = 'chip chip-changed';
+            chip.textContent = 'Changed';
+          } else {
+            chip.className = 'chip chip-ok';
+            chip.textContent = 'OK';
+          }
+          tdSelector.appendChild(chip);
           decorateTruncated(tdSelector, r.selector, `${r.selector}._domainkey.${r.domain}`);
           tr.appendChild(tdSelector);
 
@@ -228,7 +249,12 @@
           tr.appendChild(tdTxt);
 
           const tdChecked = cell();
-          tdChecked.textContent = new Date(r.last_checked).toLocaleString();
+          // No seconds: "11/24/2026, 2:00:00 AM" measured 163px vs 167px
+          // content width — the meridiem wrapped to a second line.
+          tdChecked.textContent = new Date(r.last_checked).toLocaleString(undefined, {
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: 'numeric', minute: '2-digit',
+          });
           tr.appendChild(tdChecked);
 
           const tdUnchanged = cell();
